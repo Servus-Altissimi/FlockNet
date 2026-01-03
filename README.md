@@ -3,7 +3,7 @@
 
   # FlockNet
 
-  **Easy 2 Use AQM network simulation framework for benchmarking AQM strategies in swarm network environments. Written in Rust with (Tokio for async IO)**
+  **Easy 2 Use AQM network simulation framework for benchmarking AQM strategies in swarm network environments. Written in Rust (with Tokio for async IO)**
 
   [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
   [![Rust](https://img.shields.io/badge/rust-1.89+-orange.svg)](https://www.rust-lang.org/)
