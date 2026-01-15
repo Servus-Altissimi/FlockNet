@@ -31,7 +31,7 @@ struct MetricsInner {
     packets_received: u64,
     packets_dropped: u64,
     total_latency_ms: f64,
-    latency_samples: u64,  // ADDED: Track number of valid latency samples
+    latency_samples: u64,
     queue_lengths: Vec<usize>,
     snapshots: Vec<MetricsSnapshot>,
 }
@@ -44,7 +44,7 @@ impl MetricsCollector {
                 packets_received: 0,
                 packets_dropped: 0,
                 total_latency_ms: 0.0,
-                latency_samples: 0,  // ADDED
+                latency_samples: 0,
                 queue_lengths: Vec::new(),
                 snapshots: Vec::new(),
             })),
@@ -62,15 +62,13 @@ impl MetricsCollector {
         
         let latency_ms = latency.as_secs_f64() * 1000.0;
         
-        // CRITICAL FIX: Add bounds checking for latency
-        // Under extreme congestion, 5-10s latencies are possible
-        // Only reject truly impossible values (>30s)
+        // Only reject truly impossible values (30s as always)
         if latency_ms > 30_000.0 {
             warn!("Detected impossible latency: {:.2}ms - ignoring sample (likely timing bug)", latency_ms);
             return;
         }
         
-        // ADDED: Only count valid samples for average calculation
+        // Only count valid samples for average calculation
         inner.total_latency_ms += latency_ms;
         inner.latency_samples += 1;
     }

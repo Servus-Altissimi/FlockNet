@@ -47,7 +47,7 @@ impl StrategyRegistry {
         self.register("adaptive-red", |size| Box::new(red::AdaptiveRed::new(size)));
         self.register("ared", |size| Box::new(red::AdaptiveRed::new(size)));
         self.register("blue", |size| Box::new(blue::Blue::new(size)));
-        self.register("codel", |_| Box::new(codel::CoDel::new()));
+        self.register("codel", |buffer_size| Box::new(codel::CoDel::new(buffer_size)));
         self.register("pie", |_| Box::new(pie::Pie::new()));
         self.register("fq-codel", |size| Box::new(fq_codel::FqCoDel::new(size)));
         self.register("fqcodel", |size| Box::new(fq_codel::FqCoDel::new(size)));

@@ -145,7 +145,7 @@ pub fn export_latex_detailed(reports: &[AnalysisReport], output_path: impl AsRef
             escape_latex(&r.strategy_name), r.packet_loss_rate * 100.0)?;
         writeln!(file)?;
     }
-    
+    /*  */
     writeln!(file, "\\subsection{{Strategie-specifieke Analyse}}")?;
     writeln!(file)?;
     
@@ -231,7 +231,7 @@ pub fn export_latex_figure(
 fn escape_latex(s: &str) -> String {
     s.replace('_', "\\_")
         .replace('%', "\\%")
-        .replace(',', "{,}")  // Fixed: was "\\$", should preserve commas in a group        
+        .replace(',', "{,}")     
         .replace('&', "\\&")
         .replace('#', "\\#")
         .replace('{', "\\{")

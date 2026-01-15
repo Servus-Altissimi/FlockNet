@@ -1,5 +1,3 @@
-// This was a headache
-
 use super::{Action, Strategy};
 use crate::network::Packet;
 use std::collections::{HashMap, VecDeque};
@@ -39,6 +37,7 @@ pub struct FqCoDel {
     buffer_size: usize,
     target: Duration,
     interval: Duration,
+    last_dequeue_flow: u32,
 }
 
 impl FqCoDel {
@@ -50,12 +49,12 @@ impl FqCoDel {
             buffer_size,
             target: Duration::from_millis(5),
             interval: Duration::from_millis(100),
+            last_dequeue_flow: 0,
         }
     }
 
     fn hash_flow(packet: &Packet) -> u32 {
-        packet.source_agent % 1024 // Hash based on sourced agent to separate all the flows
-
+        packet.source_agent % 1024
     }
 
     fn control_law(&self, count: u32) -> Duration {
@@ -72,11 +71,58 @@ impl FqCoDel {
         self.flow_queues.get(&flow_id).map(|q| q.len()).unwrap_or(0)
     }
 
-    fn estimate_sojourn_time(&self, flow_id: u32) -> Duration {
-        // Use avg_sojourn from update() if available, otherwise estimate
-        let queue_len = self.flow_queue_length(flow_id);
-        // conservative estimate for 100Mbps, 1500 byte packets
-        Duration::from_micros((queue_len as u64) * 120)
+    fn get_sojourn_time(&self, flow_id: u32) -> Duration {
+        if let Some(queue) = self.flow_queues.get(&flow_id) {
+            if let Some(oldest) = queue.front() {
+                return oldest.enqueue_time.elapsed();
+            }
+        }
+        Duration::from_millis(0)
+    }
+
+    // same as standalone CoDel
+    fn should_drop_flow(&mut self, flow_id: u32, sojourn_time: Duration, now: Instant) -> bool {
+        let state = self.flow_states.entry(flow_id).or_insert_with(FlowState::new);
+
+        if sojourn_time < self.target {
+            state.first_above_time = None;
+            state.dropping = false;
+            state.count = 0;
+            return false;
+        }
+
+        if state.first_above_time.is_none() {
+            state.first_above_time = Some(now);
+            return false;
+        }
+
+        if let Some(first_above) = state.first_above_time {
+            let time_above = now.duration_since(first_above);
+
+            if time_above < self.interval {
+                return false;
+            }
+
+            if !state.dropping {
+                state.dropping = true;
+                state.count = 1;
+                state.drop_next = now;
+                return true;
+            }
+
+            if now >= state.drop_next {
+                state.count += 1;
+                let count = state.count;
+                let interval = self.interval;
+                drop(state);
+                let control_duration = self.control_law(count);
+                let state = self.flow_states.get_mut(&flow_id).unwrap();
+                state.drop_next = now + control_duration;
+                return true;
+            }
+        }
+
+        false
     }
 }
 
@@ -85,63 +131,16 @@ impl Strategy for FqCoDel {
         let flow_id = Self::hash_flow(packet);
         let now = Instant::now();
         
-        // Check if total buffer is full
         if self.total_queue_length() >= self.buffer_size {
             return Action::Drop;
         }
 
-        // Estimate sojourn time based on flow queue length
-        let sojourn_time = self.estimate_sojourn_time(flow_id);
-        
-        // Calculate control law interval before borrowing state mutably
-        let interval = self.interval;
-        let target = self.target;
-        let control_law_fn = |count: u32| -> Duration {
-            Duration::from_secs_f64(interval.as_secs_f64() / (count as f64).sqrt().max(1.0))
-        };
-        
-        // Get or create flow state
-        let state = self.flow_states.entry(flow_id).or_insert_with(FlowState::new);
+        let sojourn_time = self.get_sojourn_time(flow_id);
 
-        // Apply CoDel algorithm for every flow
-        let should_drop = if sojourn_time < target {
-            state.first_above_time = None; // Below target: Reset
-            state.dropping = false;
-            state.count = 0;
-            false
-        } else {
-            if state.first_above_time.is_none() {
-                state.first_above_time = Some(now);
-            }
-            
-            if let Some(first_above) = state.first_above_time {
-                if now.duration_since(first_above) > interval {
-                    if !state.dropping {
-                        state.dropping = true;
-                        state.count = 1;
-                        state.drop_next = now;
-                        true
-                    } else if now >= state.drop_next {
-                        // Continue dropping according to control law
-                        let count = state.count;
-                        state.count += 1;
-                        state.drop_next = now + control_law_fn(count);
-                        true
-                    } else {
-                        false
-                    }
-                } else {
-                    false
-                }
-            } else {
-                false
-            }
-        };
-
-        if should_drop {
+        // Apply CoDel algorithm per flow
+        if self.should_drop_flow(flow_id, sojourn_time, now) {
             Action::Drop
         } else {
-            // If accepted, add to the specific flows queue
             let queued_packet = QueuedPacket {
                 packet: packet.clone(),
                 flow_id,
@@ -156,21 +155,31 @@ impl Strategy for FqCoDel {
     }
 
     fn on_dequeue(&mut self, _queue_len: usize) {
-        // Round-robin dequeue: find the first non-empty flow and dequeue from it
         let mut flow_ids: Vec<u32> = self.flow_queues.keys().copied().collect();
+        if flow_ids.is_empty() {
+            return;
+        }
+        
         flow_ids.sort();
+        
+        // find start position (after last dequeued flow)
+        let start_pos = flow_ids.iter().position(|&id| id > self.last_dequeue_flow).unwrap_or(0);
+        
+        flow_ids.rotate_left(start_pos);
         
         for flow_id in flow_ids {
             if let Some(queue) = self.flow_queues.get_mut(&flow_id) {
                 if !queue.is_empty() {
                     queue.pop_front();
-                    break; // Only dequeue one packet per call
+                    self.last_dequeue_flow = flow_id;
+                    break;
                 }
             }
         }
     }
 
-    fn update(&mut self, _queue_len: usize, _avg_sojourn_ms: f64) { 
+    fn update(&mut self, _queue_len: usize, _avg_sojourn_ms: f64) {
+        // Cleanup empty flows to prevent memory leak (redundant)
         self.flow_states.retain(|_, state| state.dropping || state.first_above_time.is_some());
         self.flow_queues.retain(|_, queue| !queue.is_empty());
     }
@@ -180,6 +189,7 @@ impl Strategy for FqCoDel {
     fn reset(&mut self) {
         self.flow_states.clear();
         self.flow_queues.clear();
+        self.last_dequeue_flow = 0;
     }
 
     fn clone_box(&self) -> Box<dyn Strategy> {

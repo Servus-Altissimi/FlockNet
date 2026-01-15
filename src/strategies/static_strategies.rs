@@ -1,4 +1,4 @@
-// A catch all for FIFO an Droptail, they're both pretty simplistic anyway
+// A catch all for FIFO and DropTail, they're both pretty simplistic anyway
 
 use super::{Action, Strategy};
 use crate::network::Packet;
@@ -23,13 +23,10 @@ impl Strategy for DropTail {
         }
     }
 
-    fn on_dequeue(&mut self, _queue_len: usize) {}
-
-    fn update(&mut self, _queue_len: usize, _avg_sojourn_ms: f64) {}
-
-    fn name(&self) -> &str {"DropTail"}
-
-    fn reset(&mut self) {}
+    fn on_dequeue(&mut self, _queue_len: usize) { }
+    fn update(&mut self, _queue_len: usize, _avg_sojourn_ms: f64) { }
+    fn name(&self) -> &str { "DropTail" }
+    fn reset(&mut self) { }
 
     fn clone_box(&self) -> Box<dyn Strategy> {
         Box::new(self.clone())
@@ -56,13 +53,10 @@ impl Strategy for Fifo {
         }
     }
 
-    fn on_dequeue(&mut self, _queue_len: usize) {}
-
-    fn update(&mut self, _queue_len: usize, _avg_sojourn_ms: f64) {}
-
-    fn name(&self) -> &str {"FIFO"}
-
-    fn reset(&mut self) {}
+    fn on_dequeue(&mut self, _queue_len: usize) { }
+    fn update(&mut self, _queue_len: usize, _avg_sojourn_ms: f64) { }
+    fn name(&self) -> &str { "FIFO" }
+    fn reset(&mut self) { }
 
     fn clone_box(&self) -> Box<dyn Strategy> {
         Box::new(self.clone())
