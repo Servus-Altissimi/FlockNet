@@ -177,7 +177,7 @@ impl Agent {
         }
         
         if let Some(mut s) = stream {
-            let data = bincode::serialize(packet)?;
+            let data = wincode::serialize(packet)?;
             
             match s.write_all(&data).await {
                 Ok(_) => {

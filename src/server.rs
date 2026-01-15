@@ -106,7 +106,7 @@ impl Server {
                 break;
             }
 
-            if let Ok(packet) = bincode::deserialize::<Packet>(&buf[..n]) {
+            if let Ok(packet) = wincode::deserialize::<Packet>(&buf[..n]) {
                 self.enqueue_packet(packet);
             }
         }

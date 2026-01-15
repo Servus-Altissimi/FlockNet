@@ -1,7 +1,8 @@
 use serde::{Deserialize, Serialize};
+use wincode_derive::{SchemaRead, SchemaWrite};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, SchemaWrite, SchemaRead)]
 pub struct PacketId(u64);
 
 impl PacketId {
@@ -10,7 +11,7 @@ impl PacketId {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, SchemaWrite, SchemaRead)]
 pub struct Packet {
     pub id: PacketId,
     pub source_agent: u32,
@@ -71,12 +72,11 @@ impl Packet {
             return Duration::ZERO;
         }
         
-        // Convert to Duration (with overflow protection)
         Duration::from_micros(elapsed_micros.min(u64::MAX as u128) as u64)
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, SchemaWrite, SchemaRead)]
 pub enum Priority {
     Low = 0,
     Normal = 1,
