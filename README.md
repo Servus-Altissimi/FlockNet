@@ -52,7 +52,7 @@ I'm developing this as part of my high school research article on viable AQM alg
 
 ### Build from Source
 ```bash
-git clone https://github.com/yourusername/flocknet.git 
+git clone https://github.com/Servus-Altissimi/flocknet.git 
 cd flocknet
 cargo build --release
 ```
